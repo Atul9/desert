@@ -191,3 +191,73 @@ extends past the end of the buffer slice and the program should fetch more data
 from the network or from on disk. These concerns are provided by the
 `CountBytes` traits.
 
+# api
+
+[Read the full documentation](https://docs.rs/desert)
+
+This crate consists of these traits for handling binary data:
+
+```
+pub trait ToBytes {
+  fn to_bytes(&self) -> Result<Vec<u8>,Error>;
+  fn write_bytes(&self, dst: &mut [u8]) -> Result<usize,Error>;
+}
+pub trait ToBytesBE {
+  fn to_bytes_be(&self) -> Result<Vec<u8>,Error>;
+  fn write_bytes_be(&self, dst: &mut [u8]) -> Result<usize,Error>;
+}
+pub trait ToBytesLE {
+  fn to_bytes_le(&self) -> Result<Vec<u8>,Error>;
+  fn write_bytes_le(&self, dst: &mut [u8]) -> Result<usize,Error>;
+}
+
+pub trait FromBytes: Sized {
+  fn from_bytes(src: &[u8]) -> Result<(usize,Self),Error>;
+}
+pub trait FromBytesBE: Sized {
+  fn from_bytes_be(src: &[u8]) -> Result<(usize,Self),Error>;
+}
+pub trait FromBytesLE: Sized {
+  fn from_bytes_le(src: &[u8]) -> Result<(usize,Self),Error>;
+}
+
+pub trait CountBytes {
+  fn count_from_bytes(buf: &[u8]) -> Result<usize,Error>;
+  fn count_from_bytes_more(buf: &[u8]) -> Result<Option<usize>,Error>;
+  fn count_bytes(&self) -> usize;
+}
+pub trait CountBytesBE {
+  fn count_from_bytes_be(buf: &[u8]) -> Result<usize,Error>;
+  fn count_from_bytes_be_more(buf: &[u8]) -> Result<Option<usize>,Error>;
+  fn count_bytes_be(&self) -> usize;
+}
+pub trait CountBytesLE {
+  fn count_from_bytes_le(buf: &[u8]) -> Result<usize,Error>;
+  fn count_from_bytes_le_more(buf: &[u8]) -> Result<Option<usize>,Error>;
+  fn count_bytes_le(&self) -> usize;
+}
+```
+
+As well as implementations for:
+
+* u8, u16, u32, u64, u128
+* i8, i16, i32, i64, i128
+* f32, f64, bool
+* tuples (up to 12 elements)
+* arrays (up to 100 elements plus powers of 2 up to 65536)
+* vectors and slices
+
+If the array length you need is not covered, you can use the exported
+`define_array!` and `define_arrays!` macros. For example this will define
+implementations of arrays with lengths of 150, 200, 220, 240, 260, and 280.
+
+```rust
+use desert::{define_array,define_arrays};
+
+define_array![150];
+define_arrays![200,220,240,260,280]
+```
+
+# license
+
+BSD
