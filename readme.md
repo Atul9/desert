@@ -247,17 +247,6 @@ As well as implementations for:
 * arrays (up to 100 elements plus powers of 2 up to 65536)
 * vectors and slices
 
-If the array length you need is not covered, you can use the exported
-`define_array!` and `define_arrays!` macros. For example this will define
-implementations of arrays with lengths of 150, 200, 220, 240, 260, and 280.
-
-```rust
-use desert::{define_array,define_arrays};
-
-define_array![150];
-define_arrays![200,220,240,260,280]
-```
-
 # license
 
-BSD
+MIT OR Apache-2.0

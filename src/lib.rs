@@ -190,19 +190,6 @@
 //! extends past the end of the buffer slice and the program should fetch more data
 //! from the network or from on disk. These concerns are provided by the
 //! `CountBytes` traits.
-//!
-//! # macros
-//!
-//! If the array length you need is not covered, you can use the exported
-//! `define_array!` and `define_arrays!` macros. For example this will define
-//! implementations of arrays with lengths of 150, 200, 220, 240, 260, and 280.
-//!
-//! ```rust
-//! use desert::{define_array,define_arrays};
-//!
-//! define_array![150];
-//! define_arrays![200,220,240,260,280]
-//! ```
 
 use failure::{Error,bail};
 
@@ -603,8 +590,6 @@ define_tuple![(A,0),(B,1),(C,2),(D,3),(E,4),(F,5),(G,6),(H,7),(I,8),(J,9)];
 define_tuple![(A,0),(B,1),(C,2),(D,3),(E,4),(F,5),(G,6),(H,7),(I,8),(J,9),(K,10)];
 define_tuple![(A,0),(B,1),(C,2),(D,3),(E,4),(F,5),(G,6),(H,7),(I,8),(J,9),(K,10),(L,11)];
 
-/// Define an array implementation for a given length.
-#[macro_export]
 macro_rules! define_array {
   ($n:tt) => {
     impl<T> CountBytes for [T;$n] where T: CountBytes {
@@ -753,8 +738,6 @@ macro_rules! define_array {
   }
 }
 
-/// Define array implementations for the given lengths.
-#[macro_export]
 macro_rules! define_arrays {
   ($($n:tt),*) => { $(define_array![$n];)+ };
 }
