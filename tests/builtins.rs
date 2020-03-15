@@ -21,6 +21,18 @@ fn builtins() -> Result<(),Error> {
     (13,vec!(7u32,8u32,9u32))
   ];
   assert_eq![vec!(7u32,8u32,9u32).byte_len(), 13];
+  {
+    let v: Vec<u16> = (0..500).map(|i| i%5 + (i%3)*500).collect();
+    let bytes = v.to_bytes()?;
+    let mut with_extra: Vec<u8> = bytes.clone();
+    let extra: Vec<u8> = (0..100).map(|i| ((i%6 + (i%9)*300) % 256) as u8).collect();
+    with_extra.extend(extra);
+    assert_eq![bytes.len(), 1002];
+    assert_eq![<Vec<u16>>::from_bytes(&bytes)?, (bytes.len(), v.clone())];
+    assert_eq![<Vec<u16>>::count_bytes(&bytes)?, bytes.len()];
+    assert_eq![<Vec<u16>>::from_bytes(&with_extra[..])?, (bytes.len(), v.clone())];
+    assert_eq![<Vec<u16>>::count_bytes(&with_extra[..])?, bytes.len()];
+  }
   Ok(())
 }
 
