@@ -1,6 +1,13 @@
 [package]
 name = "desert"
 version = "1.0.0"
+description = "traits for {de,ser}ializing compact binary formats"
+license = "MIT OR Apache-2.0"
+readme = "readme.md"
+repository = "https://github.com/substack/desert"
+documentation = "https://docs.rs/desert"
+keywords = [ "binary", "serialize", "deserialize" ]
+authors = [ "substack" ]
 edition = "2018"
 
 [dependencies]
