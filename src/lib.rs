@@ -2,15 +2,62 @@ use failure::{Error,bail};
 
 pub trait ToBytes {
   fn to_bytes(&self) -> Result<Vec<u8>,Error>;
-  fn write_bytes(&self, dst: &mut [u8]) -> Result<usize,Error>;
+  fn write_bytes(&self, dst: &mut [u8]) -> Result<usize,Error> {
+    let bytes = self.to_bytes()?;
+    if dst.len() < bytes.len() { bail!["dst buffer too small"] }
+    dst[0..bytes.len()].copy_from_slice(&bytes);
+    Ok(bytes.len())
+  }
 }
+pub trait ToBytesBE {
+  fn to_bytes_be(&self) -> Result<Vec<u8>,Error>;
+  fn write_bytes_be(&self, dst: &mut [u8]) -> Result<usize,Error> {
+    let bytes = self.to_bytes_be()?;
+    if dst.len() < bytes.len() { bail!["dst buffer too small"] }
+    dst[0..bytes.len()].copy_from_slice(&bytes);
+    Ok(bytes.len())
+  }
+}
+pub trait ToBytesLE {
+  fn to_bytes_le(&self) -> Result<Vec<u8>,Error>;
+  fn write_bytes_le(&self, dst: &mut [u8]) -> Result<usize,Error> {
+    let bytes = self.to_bytes_le()?;
+    if dst.len() < bytes.len() { bail!["dst buffer too small"] }
+    dst[0..bytes.len()].copy_from_slice(&bytes);
+    Ok(bytes.len())
+  }
+}
+
 pub trait FromBytes: Sized {
   fn from_bytes(src: &[u8]) -> Result<(usize,Self),Error>;
 }
+pub trait FromBytesBE: Sized {
+  fn from_bytes_be(src: &[u8]) -> Result<(usize,Self),Error>;
+}
+pub trait FromBytesLE: Sized {
+  fn from_bytes_le(src: &[u8]) -> Result<(usize,Self),Error>;
+}
+
 pub trait CountBytes {
-  fn count_bytes(buf: &[u8]) -> Result<usize,Error>;
-  //fn count_bytes(buf: &[u8]) -> Result<Some<usize>,Error>;
-  fn byte_len(&self) -> usize;
+  fn count_from_bytes(buf: &[u8]) -> Result<usize,Error>;
+  fn count_from_bytes_more(buf: &[u8]) -> Result<Option<usize>,Error> {
+    Ok(Some(Self::count_from_bytes(buf)?))
+  }
+  fn count_bytes(&self) -> usize;
+}
+pub trait CountBytesBE {
+  fn count_from_bytes_be(buf: &[u8]) -> Result<usize,Error>;
+  fn count_from_bytes_be_more(buf: &[u8]) -> Result<Option<usize>,Error> {
+    Ok(Some(Self::count_from_bytes_be(buf)?))
+  }
+  fn count_bytes_be(&self) -> usize;
+}
+pub trait CountBytesLE {
+  fn count_from_bytes_le(buf: &[u8]) -> Result<usize,Error>;
+  fn count_from_bytes_le_more(buf: &[u8]) -> Result<Option<usize>,Error> {
+    Ok(Some(Self::count_from_bytes_le(buf)?))
+  }
+  fn count_bytes_le(&self) -> usize;
 }
 
 macro_rules! buf_array {
@@ -25,17 +72,48 @@ macro_rules! buf_array {
 macro_rules! define_static_builtins {
   ($(($T:tt,$n:tt)),+) => {$(
     impl CountBytes for $T {
-      fn count_bytes(_buf: &[u8]) -> Result<usize,Error> {
+      fn count_from_bytes(_buf: &[u8]) -> Result<usize,Error> {
         Ok($n)
       }
-      fn byte_len(&self) -> usize { $n }
+      fn count_bytes(&self) -> usize { $n }
+    }
+    impl CountBytesBE for $T {
+      fn count_from_bytes_be(_buf: &[u8]) -> Result<usize,Error> {
+        Ok($n)
+      }
+      fn count_bytes_be(&self) -> usize { $n }
+    }
+    impl CountBytesLE for $T {
+      fn count_from_bytes_le(_buf: &[u8]) -> Result<usize,Error> {
+        Ok($n)
+      }
+      fn count_bytes_le(&self) -> usize { $n }
     }
     impl ToBytes for $T {
       fn to_bytes(&self) -> Result<Vec<u8>,Error> {
-        Ok(self.to_be_bytes().to_vec())
+        self.to_bytes_be()
       }
       fn write_bytes(&self, dst: &mut [u8]) -> Result<usize,Error> {
+        self.write_bytes_be(dst)
+      }
+    }
+    impl ToBytesBE for $T {
+      fn to_bytes_be(&self) -> Result<Vec<u8>,Error> {
+        Ok(self.to_be_bytes().to_vec())
+      }
+      fn write_bytes_be(&self, dst: &mut [u8]) -> Result<usize,Error> {
         let bytes = self.to_be_bytes();
+        if dst.len() < bytes.len() { bail!["dst buffer too small"] }
+        dst[0..bytes.len()].copy_from_slice(&bytes);
+        Ok(bytes.len())
+      }
+    }
+    impl ToBytesLE for $T {
+      fn to_bytes_le(&self) -> Result<Vec<u8>,Error> {
+        Ok(self.to_le_bytes().to_vec())
+      }
+      fn write_bytes_le(&self, dst: &mut [u8]) -> Result<usize,Error> {
+        let bytes = self.to_le_bytes();
         if dst.len() < bytes.len() { bail!["dst buffer too small"] }
         dst[0..bytes.len()].copy_from_slice(&bytes);
         Ok(bytes.len())
@@ -43,10 +121,24 @@ macro_rules! define_static_builtins {
     }
     impl FromBytes for $T {
       fn from_bytes(src: &[u8]) -> Result<(usize,Self),Error> {
+        Self::from_bytes_be(src)
+      }
+    }
+    impl FromBytesBE for $T {
+      fn from_bytes_be(src: &[u8]) -> Result<(usize,Self),Error> {
         if src.len() < $n {
           bail!["not enough bytes provided to construct type"]
         } else {
           Ok(($n,$T::from_be_bytes(buf_array![src,$n])))
+        }
+      }
+    }
+    impl FromBytesLE for $T {
+      fn from_bytes_le(src: &[u8]) -> Result<(usize,Self),Error> {
+        if src.len() < $n {
+          bail!["not enough bytes provided to construct type"]
+        } else {
+          Ok(($n,$T::from_le_bytes(buf_array![src,$n])))
         }
       }
     }
@@ -60,9 +152,18 @@ define_static_builtins![
 ];
 
 impl CountBytes for bool {
-  fn count_bytes(_buf: &[u8]) -> Result<usize,Error> { Ok(1) }
-  fn byte_len(&self) -> usize { 1 }
+  fn count_from_bytes(_buf: &[u8]) -> Result<usize,Error> { Ok(1) }
+  fn count_bytes(&self) -> usize { 1 }
 }
+impl CountBytesBE for bool {
+  fn count_from_bytes_be(_buf: &[u8]) -> Result<usize,Error> { Ok(1) }
+  fn count_bytes_be(&self) -> usize { 1 }
+}
+impl CountBytesLE for bool {
+  fn count_from_bytes_le(_buf: &[u8]) -> Result<usize,Error> { Ok(1) }
+  fn count_bytes_le(&self) -> usize { 1 }
+}
+
 impl ToBytes for bool {
   fn to_bytes(&self) -> Result<Vec<u8>,Error> {
     Ok(vec![if *self { 1 } else { 0 }])
@@ -73,6 +174,23 @@ impl ToBytes for bool {
     Ok(1)
   }
 }
+impl ToBytesBE for bool {
+  fn to_bytes_be(&self) -> Result<Vec<u8>,Error> {
+    self.to_bytes()
+  }
+  fn write_bytes_be(&self, dst: &mut [u8]) -> Result<usize,Error> {
+    self.write_bytes(dst)
+  }
+}
+impl ToBytesLE for bool {
+  fn to_bytes_le(&self) -> Result<Vec<u8>,Error> {
+    self.to_bytes()
+  }
+  fn write_bytes_le(&self, dst: &mut [u8]) -> Result<usize,Error> {
+    self.write_bytes(dst)
+  }
+}
+
 impl FromBytes for bool {
   fn from_bytes(src: &[u8]) -> Result<(usize,Self),Error> {
     if src.is_empty() {
@@ -82,29 +200,64 @@ impl FromBytes for bool {
     }
   }
 }
+impl FromBytesBE for bool {
+  fn from_bytes_be(src: &[u8]) -> Result<(usize,Self),Error> {
+    Self::from_bytes(src)
+  }
+}
+impl FromBytesLE for bool {
+  fn from_bytes_le(src: &[u8]) -> Result<(usize,Self),Error> {
+    Self::from_bytes(src)
+  }
+}
 
 macro_rules! define_tuple {
   ($(($T:tt,$i:tt)),+) => {
     impl<$($T),+> CountBytes for ($($T),+) where $($T: CountBytes),+ {
-      fn count_bytes(buf: &[u8]) -> Result<usize,Error> {
+      fn count_from_bytes(buf: &[u8]) -> Result<usize,Error> {
         let mut offset = 0;
         $(
-          offset += $T::count_bytes(&buf[offset..])?;
+          offset += $T::count_from_bytes(&buf[offset..])?;
         )+
         Ok(offset)
       }
-      fn byte_len(&self) -> usize {
-        $(self.$i.byte_len() +)+ 0
+      fn count_bytes(&self) -> usize {
+        $(self.$i.count_bytes() +)+ 0
       }
     }
+    impl<$($T),+> CountBytesBE for ($($T),+) where $($T: CountBytesBE),+ {
+      fn count_from_bytes_be(buf: &[u8]) -> Result<usize,Error> {
+        let mut offset = 0;
+        $(
+          offset += $T::count_from_bytes_be(&buf[offset..])?;
+        )+
+        Ok(offset)
+      }
+      fn count_bytes_be(&self) -> usize {
+        $(self.$i.count_bytes_be() +)+ 0
+      }
+    }
+    impl<$($T),+> CountBytesLE for ($($T),+) where $($T: CountBytesLE),+ {
+      fn count_from_bytes_le(buf: &[u8]) -> Result<usize,Error> {
+        let mut offset = 0;
+        $(
+          offset += $T::count_from_bytes_le(&buf[offset..])?;
+        )+
+        Ok(offset)
+      }
+      fn count_bytes_le(&self) -> usize {
+        $(self.$i.count_bytes_le() +)+ 0
+      }
+    }
+
     impl<$($T),+> ToBytes for ($($T),+) where $($T: ToBytes+CountBytes),+ {
       fn to_bytes(&self) -> Result<Vec<u8>,Error> {
-        let mut buf = vec![0u8;$(self.$i.byte_len() +)+ 0];
+        let mut buf = vec![0u8;$(self.$i.count_bytes() +)+ 0];
         self.write_bytes(&mut buf)?;
         Ok(buf)
       }
       fn write_bytes(&self, dst: &mut [u8]) -> Result<usize,Error> {
-        let len = $(self.$i.byte_len() +)+ 0;
+        let len = $(self.$i.count_bytes() +)+ 0;
         if dst.len() < len { bail!["dst buffer too small"] }
         let mut offset = 0;
         $(
@@ -113,11 +266,66 @@ macro_rules! define_tuple {
         Ok(offset)
       }
     }
+    impl<$($T),+> ToBytesBE for ($($T),+) where $($T: ToBytesBE+CountBytesBE),+ {
+      fn to_bytes_be(&self) -> Result<Vec<u8>,Error> {
+        let mut buf = vec![0u8;$(self.$i.count_bytes_be() +)+ 0];
+        self.write_bytes_be(&mut buf)?;
+        Ok(buf)
+      }
+      fn write_bytes_be(&self, dst: &mut [u8]) -> Result<usize,Error> {
+        let len = $(self.$i.count_bytes_be() +)+ 0;
+        if dst.len() < len { bail!["dst buffer too small"] }
+        let mut offset = 0;
+        $(
+          offset += self.$i.write_bytes_be(&mut dst[offset..])?;
+        )+
+        Ok(offset)
+      }
+    }
+    impl<$($T),+> ToBytesLE for ($($T),+) where $($T: ToBytesLE+CountBytesLE),+ {
+      fn to_bytes_le(&self) -> Result<Vec<u8>,Error> {
+        let mut buf = vec![0u8;$(self.$i.count_bytes_le() +)+ 0];
+        self.write_bytes_le(&mut buf)?;
+        Ok(buf)
+      }
+      fn write_bytes_le(&self, dst: &mut [u8]) -> Result<usize,Error> {
+        let len = $(self.$i.count_bytes_le() +)+ 0;
+        if dst.len() < len { bail!["dst buffer too small"] }
+        let mut offset = 0;
+        $(
+          offset += self.$i.write_bytes_le(&mut dst[offset..])?;
+        )+
+        Ok(offset)
+      }
+    }
+
     impl<$($T),+> FromBytes for ($($T),+) where $($T: FromBytes),+ {
       fn from_bytes(src: &[u8]) -> Result<(usize,Self),Error> {
         let mut offset = 0;
         let result = ($({
           let (size,x) = $T::from_bytes(&src[offset..])?;
+          offset += size;
+          x
+        }),+);
+        Ok((offset,result))
+      }
+    }
+    impl<$($T),+> FromBytesBE for ($($T),+) where $($T: FromBytesBE),+ {
+      fn from_bytes_be(src: &[u8]) -> Result<(usize,Self),Error> {
+        let mut offset = 0;
+        let result = ($({
+          let (size,x) = $T::from_bytes_be(&src[offset..])?;
+          offset += size;
+          x
+        }),+);
+        Ok((offset,result))
+      }
+    }
+    impl<$($T),+> FromBytesLE for ($($T),+) where $($T: FromBytesLE),+ {
+      fn from_bytes_le(src: &[u8]) -> Result<(usize,Self),Error> {
+        let mut offset = 0;
+        let result = ($({
+          let (size,x) = $T::from_bytes_le(&src[offset..])?;
           offset += size;
           x
         }),+);
@@ -143,31 +351,64 @@ define_tuple![(A,0),(B,1),(C,2),(D,3),(E,4),(F,5),(G,6),(H,7),(I,8),(J,9),(K,10)
 macro_rules! define_array {
   ($n:tt) => {
     impl<T> CountBytes for [T;$n] where T: CountBytes {
-      fn count_bytes(buf: &[u8]) -> Result<usize,Error> {
+      fn count_from_bytes(buf: &[u8]) -> Result<usize,Error> {
         let mut offset = 0;
         for _i in 0..$n {
-          offset += T::count_bytes(&buf[offset..])?;
+          offset += T::count_from_bytes(&buf[offset..])?;
         }
         Ok(offset)
       }
-      fn byte_len(&self) -> usize {
+      fn count_bytes(&self) -> usize {
         let mut size = 0;
         for i in 0..$n {
-          size += self[i].byte_len();
+          size += self[i].count_bytes();
         }
         size
       }
     }
+    impl<T> CountBytesBE for [T;$n] where T: CountBytesBE {
+      fn count_from_bytes_be(buf: &[u8]) -> Result<usize,Error> {
+        let mut offset = 0;
+        for _i in 0..$n {
+          offset += T::count_from_bytes_be(&buf[offset..])?;
+        }
+        Ok(offset)
+      }
+      fn count_bytes_be(&self) -> usize {
+        let mut size = 0;
+        for i in 0..$n {
+          size += self[i].count_bytes_be();
+        }
+        size
+      }
+    }
+    impl<T> CountBytesLE for [T;$n] where T: CountBytesLE {
+      fn count_from_bytes_le(buf: &[u8]) -> Result<usize,Error> {
+        let mut offset = 0;
+        for _i in 0..$n {
+          offset += T::count_from_bytes_le(&buf[offset..])?;
+        }
+        Ok(offset)
+      }
+      fn count_bytes_le(&self) -> usize {
+        let mut size = 0;
+        for i in 0..$n {
+          size += self[i].count_bytes_le();
+        }
+        size
+      }
+    }
+
     impl<T> ToBytes for [T;$n] where T: ToBytes+CountBytes {
       fn to_bytes(&self) -> Result<Vec<u8>,Error> {
-        let mut buf = vec![0u8;self.byte_len()];
+        let mut buf = vec![0u8;self.count_bytes()];
         self.write_bytes(&mut buf)?;
         Ok(buf)
       }
       fn write_bytes(&self, dst: &mut [u8]) -> Result<usize,Error> {
         let mut len = 0;
         for i in 0..$n {
-          len += self[i].byte_len();
+          len += self[i].count_bytes();
         }
         if dst.len() < len { bail!["dst buffer too small to write array"] }
         let mut offset = 0;
@@ -177,12 +418,75 @@ macro_rules! define_array {
         Ok(offset)
       }
     }
+    impl<T> ToBytesBE for [T;$n] where T: ToBytesBE+CountBytesBE {
+      fn to_bytes_be(&self) -> Result<Vec<u8>,Error> {
+        let mut buf = vec![0u8;self.count_bytes_be()];
+        self.write_bytes_be(&mut buf)?;
+        Ok(buf)
+      }
+      fn write_bytes_be(&self, dst: &mut [u8]) -> Result<usize,Error> {
+        let mut len = 0;
+        for i in 0..$n {
+          len += self[i].count_bytes_be();
+        }
+        if dst.len() < len { bail!["dst buffer too small to write array"] }
+        let mut offset = 0;
+        for i in 0..$n {
+          offset += self[i].write_bytes_be(&mut dst[offset..])?;
+        }
+        Ok(offset)
+      }
+    }
+    impl<T> ToBytesLE for [T;$n] where T: ToBytesLE+CountBytesLE {
+      fn to_bytes_le(&self) -> Result<Vec<u8>,Error> {
+        let mut buf = vec![0u8;self.count_bytes_le()];
+        self.write_bytes_le(&mut buf)?;
+        Ok(buf)
+      }
+      fn write_bytes_le(&self, dst: &mut [u8]) -> Result<usize,Error> {
+        let mut len = 0;
+        for i in 0..$n {
+          len += self[i].count_bytes_le();
+        }
+        if dst.len() < len { bail!["dst buffer too small to write array"] }
+        let mut offset = 0;
+        for i in 0..$n {
+          offset += self[i].write_bytes_le(&mut dst[offset..])?;
+        }
+        Ok(offset)
+      }
+    }
+
     impl<T> FromBytes for [T;$n] where T: FromBytes+Default+Copy {
       fn from_bytes(src: &[u8]) -> Result<(usize,Self),Error> {
         let mut res = [T::default();$n];
         let mut offset = 0;
         for i in 0..$n {
           let (size,x) = T::from_bytes(&src[offset..])?;
+          offset += size;
+          res[i] = x;
+        }
+        Ok((offset,res))
+      }
+    }
+    impl<T> FromBytesBE for [T;$n] where T: FromBytesBE+Default+Copy {
+      fn from_bytes_be(src: &[u8]) -> Result<(usize,Self),Error> {
+        let mut res = [T::default();$n];
+        let mut offset = 0;
+        for i in 0..$n {
+          let (size,x) = T::from_bytes_be(&src[offset..])?;
+          offset += size;
+          res[i] = x;
+        }
+        Ok((offset,res))
+      }
+    }
+    impl<T> FromBytesLE for [T;$n] where T: FromBytesLE+Default+Copy {
+      fn from_bytes_le(src: &[u8]) -> Result<(usize,Self),Error> {
+        let mut res = [T::default();$n];
+        let mut offset = 0;
+        for i in 0..$n {
+          let (size,x) = T::from_bytes_le(&src[offset..])?;
           offset += size;
           res[i] = x;
         }
@@ -196,23 +500,26 @@ macro_rules! define_array {
 macro_rules! define_arrays {
   ($($n:tt),*) => { $(define_array![$n];)+ };
 }
-define_arrays![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,
-  17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,
-  33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,
-  49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64
+define_arrays![
+  1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,
+  26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50
+];
+define_arrays![
+  51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,
+  76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100
 ];
 define_arrays![128,256,512,1024,2048,4096,8192,16384,32768,65536];
 
 impl<T> ToBytes for [T] where T: ToBytes+CountBytes {
   fn to_bytes(&self) -> Result<Vec<u8>,Error> {
-    let mut buf = vec![0u8;self.byte_len()];
+    let mut buf = vec![0u8;self.count_bytes()];
     self.write_bytes(&mut buf)?;
     Ok(buf)
   }
   fn write_bytes(&self, dst: &mut [u8]) -> Result<usize,Error> {
     let mut len = 0;
     for x in self.iter() {
-      len += x.byte_len();
+      len += x.count_bytes();
     }
     let hlen = varint_length(len as u64);
     if dst.len() < len+hlen { bail!["dst buffer too small to write vec"] }
@@ -223,20 +530,94 @@ impl<T> ToBytes for [T] where T: ToBytes+CountBytes {
     Ok(offset)
   }
 }
-
-impl<T> CountBytes for [T] where T: CountBytes {
-  fn count_bytes(buf: &[u8]) -> Result<usize,Error> {
-    let (mut offset,len) = varint_decode(buf)?;
-    let end = (offset as u64) + len;
-    while (offset as u64) < end {
-      offset += T::count_bytes(&buf[offset..])?;
+impl<T> ToBytesBE for [T] where T: ToBytesBE+CountBytesBE {
+  fn to_bytes_be(&self) -> Result<Vec<u8>,Error> {
+    let mut buf = vec![0u8;self.count_bytes_be()];
+    self.write_bytes_be(&mut buf)?;
+    Ok(buf)
+  }
+  fn write_bytes_be(&self, dst: &mut [u8]) -> Result<usize,Error> {
+    let mut len = 0;
+    for x in self.iter() {
+      len += x.count_bytes_be();
+    }
+    let hlen = varint_length(len as u64);
+    if dst.len() < len+hlen { bail!["dst buffer too small to write vec"] }
+    let mut offset = varint_encode(len as u64, dst)?;
+    for x in self.iter() {
+      offset += x.write_bytes_be(&mut dst[offset..])?;
     }
     Ok(offset)
   }
-  fn byte_len(&self) -> usize {
+}
+impl<T> ToBytesLE for [T] where T: ToBytesLE+CountBytesLE {
+  fn to_bytes_le(&self) -> Result<Vec<u8>,Error> {
+    let mut buf = vec![0u8;self.count_bytes_le()];
+    self.write_bytes_le(&mut buf)?;
+    Ok(buf)
+  }
+  fn write_bytes_le(&self, dst: &mut [u8]) -> Result<usize,Error> {
     let mut len = 0;
     for x in self.iter() {
-      len += x.byte_len();
+      len += x.count_bytes_le();
+    }
+    let hlen = varint_length(len as u64);
+    if dst.len() < len+hlen { bail!["dst buffer too small to write vec"] }
+    let mut offset = varint_encode(len as u64, dst)?;
+    for x in self.iter() {
+      offset += x.write_bytes_le(&mut dst[offset..])?;
+    }
+    Ok(offset)
+  }
+}
+
+impl<T> CountBytes for [T] where T: CountBytes {
+  fn count_from_bytes(buf: &[u8]) -> Result<usize,Error> {
+    let (mut offset,len) = varint_decode(buf)?;
+    let end = (offset as u64) + len;
+    while (offset as u64) < end {
+      offset += T::count_from_bytes(&buf[offset..])?;
+    }
+    Ok(offset)
+  }
+  fn count_bytes(&self) -> usize {
+    let mut len = 0;
+    for x in self.iter() {
+      len += x.count_bytes();
+    }
+    return len + varint_length(len as u64);
+  }
+}
+impl<T> CountBytesBE for [T] where T: CountBytesBE {
+  fn count_from_bytes_be(buf: &[u8]) -> Result<usize,Error> {
+    let (mut offset,len) = varint_decode(buf)?;
+    let end = (offset as u64) + len;
+    while (offset as u64) < end {
+      offset += T::count_from_bytes_be(&buf[offset..])?;
+    }
+    Ok(offset)
+  }
+  fn count_bytes_be(&self) -> usize {
+    let mut len = 0;
+    for x in self.iter() {
+      len += x.count_bytes_be();
+    }
+    return len + varint_length(len as u64);
+  }
+}
+impl<T> CountBytesLE for [T] where T: CountBytesLE {
+  fn count_from_bytes_le(buf: &[u8]) -> Result<usize,Error> {
+    let (mut offset,len) = varint_decode(buf)?;
+    let end = (offset as u64) + len;
+    while (offset as u64) < end {
+      offset += T::count_from_bytes_le(&buf[offset..])?;
+    }
+    Ok(offset)
+  }
+  fn count_bytes_le(&self) -> usize {
+    let mut len = 0;
+    for x in self.iter() {
+      len += x.count_bytes_le();
     }
     return len + varint_length(len as u64);
   }
@@ -244,20 +625,60 @@ impl<T> CountBytes for [T] where T: CountBytes {
 
 impl<T> ToBytes for Vec<T> where T: ToBytes+CountBytes {
   fn to_bytes(&self) -> Result<Vec<u8>,Error> {
-    let mut buf = vec![0u8;self.byte_len()];
+    let mut buf = vec![0u8;self.count_bytes()];
     self.write_bytes(&mut buf)?;
     Ok(buf)
   }
   fn write_bytes(&self, dst: &mut [u8]) -> Result<usize,Error> {
     let mut len = 0;
     for x in self.iter() {
-      len += x.byte_len();
+      len += x.count_bytes();
     }
     let hlen = varint_length(len as u64);
     if dst.len() < len+hlen { bail!["dst buffer too small to write vec"] }
     let mut offset = varint_encode(len as u64, dst)?;
     for x in self.iter() {
       offset += x.write_bytes(&mut dst[offset..])?;
+    }
+    Ok(offset)
+  }
+}
+impl<T> ToBytesBE for Vec<T> where T: ToBytesBE+CountBytesBE {
+  fn to_bytes_be(&self) -> Result<Vec<u8>,Error> {
+    let mut buf = vec![0u8;self.count_bytes_be()];
+    self.write_bytes_be(&mut buf)?;
+    Ok(buf)
+  }
+  fn write_bytes_be(&self, dst: &mut [u8]) -> Result<usize,Error> {
+    let mut len = 0;
+    for x in self.iter() {
+      len += x.count_bytes_be();
+    }
+    let hlen = varint_length(len as u64);
+    if dst.len() < len+hlen { bail!["dst buffer too small to write vec"] }
+    let mut offset = varint_encode(len as u64, dst)?;
+    for x in self.iter() {
+      offset += x.write_bytes_be(&mut dst[offset..])?;
+    }
+    Ok(offset)
+  }
+}
+impl<T> ToBytesLE for Vec<T> where T: ToBytesLE+CountBytesLE {
+  fn to_bytes_le(&self) -> Result<Vec<u8>,Error> {
+    let mut buf = vec![0u8;self.count_bytes_le()];
+    self.write_bytes_le(&mut buf)?;
+    Ok(buf)
+  }
+  fn write_bytes_le(&self, dst: &mut [u8]) -> Result<usize,Error> {
+    let mut len = 0;
+    for x in self.iter() {
+      len += x.count_bytes_le();
+    }
+    let hlen = varint_length(len as u64);
+    if dst.len() < len+hlen { bail!["dst buffer too small to write vec"] }
+    let mut offset = varint_encode(len as u64, dst)?;
+    for x in self.iter() {
+      offset += x.write_bytes_le(&mut dst[offset..])?;
     }
     Ok(offset)
   }
@@ -276,20 +697,80 @@ impl<T> FromBytes for Vec<T> where T: FromBytes {
     Ok((end,v))
   }
 }
+impl<T> FromBytesBE for Vec<T> where T: FromBytesBE {
+  fn from_bytes_be(src: &[u8]) -> Result<(usize,Self),Error> {
+    let (mut offset,len) = varint_decode(src)?;
+    let end = offset + (len as usize);
+    let mut v = vec![];
+    while offset < end {
+      let (size,x) = T::from_bytes_be(&src[offset..])?;
+      v.push(x);
+      offset += size;
+    }
+    Ok((end,v))
+  }
+}
+impl<T> FromBytesLE for Vec<T> where T: FromBytesLE {
+  fn from_bytes_le(src: &[u8]) -> Result<(usize,Self),Error> {
+    let (mut offset,len) = varint_decode(src)?;
+    let end = offset + (len as usize);
+    let mut v = vec![];
+    while offset < end {
+      let (size,x) = T::from_bytes_le(&src[offset..])?;
+      v.push(x);
+      offset += size;
+    }
+    Ok((end,v))
+  }
+}
 
 impl<T> CountBytes for Vec<T> where T: CountBytes {
-  fn count_bytes(buf: &[u8]) -> Result<usize,Error> {
+  fn count_from_bytes(buf: &[u8]) -> Result<usize,Error> {
     let (mut offset,len) = varint_decode(buf)?;
     let end = (offset as u64) + len;
     while (offset as u64) < end {
-      offset += T::count_bytes(&buf[offset..])?;
+      offset += T::count_from_bytes(&buf[offset..])?;
     }
     Ok(offset)
   }
-  fn byte_len(&self) -> usize {
+  fn count_bytes(&self) -> usize {
     let mut len = 0;
     for x in self.iter() {
-      len += x.byte_len();
+      len += x.count_bytes();
+    }
+    return len + varint_length(len as u64);
+  }
+}
+impl<T> CountBytesBE for Vec<T> where T: CountBytesBE {
+  fn count_from_bytes_be(buf: &[u8]) -> Result<usize,Error> {
+    let (mut offset,len) = varint_decode(buf)?;
+    let end = (offset as u64) + len;
+    while (offset as u64) < end {
+      offset += T::count_from_bytes_be(&buf[offset..])?;
+    }
+    Ok(offset)
+  }
+  fn count_bytes_be(&self) -> usize {
+    let mut len = 0;
+    for x in self.iter() {
+      len += x.count_bytes_be();
+    }
+    return len + varint_length(len as u64);
+  }
+}
+impl<T> CountBytesLE for Vec<T> where T: CountBytesLE {
+  fn count_from_bytes_le(buf: &[u8]) -> Result<usize,Error> {
+    let (mut offset,len) = varint_decode(buf)?;
+    let end = (offset as u64) + len;
+    while (offset as u64) < end {
+      offset += T::count_from_bytes_le(&buf[offset..])?;
+    }
+    Ok(offset)
+  }
+  fn count_bytes_le(&self) -> usize {
+    let mut len = 0;
+    for x in self.iter() {
+      len += x.count_bytes_le();
     }
     return len + varint_length(len as u64);
   }
