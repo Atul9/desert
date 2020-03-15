@@ -176,42 +176,19 @@ macro_rules! define_array {
         Ok(offset)
       }
     }
-    impl<T> FromBytes for [T;$n] where T: FromBytes+CountBytes {
+    impl<T> FromBytes for [T;$n] where T: FromBytes+Default+Copy {
       fn from_bytes(buf: &[u8]) -> Result<(usize,Self),Error> {
-        let len = Self::count_bytes(buf)?;
-        if buf.len() < len {
-          bail!["not enough bytes provided to construct array type"]
-        } else {
-          let mut offset = 0;
-          let b = build_array![$n,{
-            let (size,x) = T::from_bytes(&buf[offset..])?;
-            offset += size;
-            x
-          }];
-          Ok((len,b))
+        let mut res = [T::default();$n];
+        let mut offset = 0;
+        for i in 0..$n {
+          let (size,x) = T::from_bytes(&buf[offset..])?;
+          offset += size;
+          res[i] = x;
         }
+        Ok((offset,res))
       }
     }
   }
-}
-
-macro_rules! build_array {
-  (1,$x:expr) => { [$x] };
-  (2,$x:expr) => { [$x,$x] };
-  (3,$x:expr) => { [$x,$x,$x] };
-  (4,$x:expr) => { [$x,$x,$x,$x] };
-  (5,$x:expr) => { [$x,$x,$x,$x,$x] };
-  (6,$x:expr) => { [$x,$x,$x,$x,$x,$x] };
-  (7,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x] };
-  (8,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x,$x] };
-  (9,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x,$x,$x] };
-  (10,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x,$x,$x,$x] };
-  (11,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x] };
-  (12,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x] };
-  (13,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x] };
-  (14,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x] };
-  (15,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x] };
-  (16,$x:expr) => { [$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x,$x] };
 }
 
 macro_rules! define_arrays {

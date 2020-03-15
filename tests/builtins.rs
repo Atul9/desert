@@ -49,6 +49,7 @@ fn arrays() -> Result<(),Error> {
   assert_eq![[6u16,7u16,8u16].byte_len(),6];
   assert_eq![[3u8,4u8].to_bytes()?,vec!(3,4)];
   assert_eq![[6u16,7u16,8u16].to_bytes()?,vec!(0,6,0,7,0,8)];
-  assert_eq![<[u16]>::count_bytes(&[0,6,0,7,0,8,200,201,202,203,204])?, 6];
+  assert_eq![<[u16]>::count_bytes(&[6,0,6,0,7,0,8,200,201,202,203,204])?, 7];
+  assert_eq![<[u16;3]>::count_bytes(&[0,6,0,7,0,8,200,201,202,203,204])?, 6];
   Ok(())
 }
