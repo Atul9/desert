@@ -1,7 +1,7 @@
 [package]
 name = "desert"
 version = "1.0.0"
-description = "traits for {de,ser}ializing compact binary formats"
+description = "traits for {de,}serializing compact binary formats"
 license = "MIT OR Apache-2.0"
 readme = "readme.md"
 repository = "https://github.com/substack/desert"

@@ -1,11 +1,11 @@
 //! # desert
 //!
-//! traits for {de,ser}ializing compact binary formats
+//! traits for {de,}serializing compact binary formats
 //!
 //! * compact representations for the builtin container types (tuples, arrays,
 //!   slices, vectors) is provided.
 //! * varint length encoding scheme for slices and vectors (1 byte for len < 128)
-//! * emphasis on ergonomics of implementing custom binary {de,ser}ializers
+//! * emphasis on ergonomics of implementing custom binary {de,}serializers
 //!
 //! This crate does not (presently) provide automatic derivation. Instead, the
 //! emphasis is on having a good collection of compact implementations for built-in
