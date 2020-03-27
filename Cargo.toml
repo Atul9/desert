@@ -1,6 +1,6 @@
 [package]
 name = "desert"
-version = "1.0.2"
+version = "1.0.3"
 description = "traits for {de,}serializing compact binary formats"
 license = "MIT OR Apache-2.0"
 readme = "readme.md"
