@@ -1049,6 +1049,6 @@ fn varint_encode(value: u64, buf: &mut [u8]) -> Result<usize,Error> {
 }
 
 fn varint_length(value: u64) -> usize {
-  let msb = (64 - value.leading_zeros()) as usize;
+  let msb = (63 - value.leading_zeros()) as usize;
   (msb.max(1)+7)/7
 }
